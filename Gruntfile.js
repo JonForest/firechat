@@ -30,6 +30,17 @@ module.exports = function(grunt) {
       }
     },
 
+    replace: {
+      replace_this: {
+        src: ['compiled/templates.js'],
+        overwrite: true,                 // overwrite matched source files
+        replacements: [{
+          from: /this/g,
+          to: 'window'
+        }]
+      }
+    },
+
     // Compile and minify LESS CSS for production.
     less: {
       development: {
@@ -81,6 +92,7 @@ module.exports = function(grunt) {
   // Load specific plugins, which have been installed and specified in package.json.
   grunt.loadNpmTasks('grunt-contrib-clean');
   grunt.loadNpmTasks('grunt-contrib-concat');
+  grunt.loadNpmTasks('grunt-text-replace');
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-contrib-jst');
   grunt.loadNpmTasks('grunt-contrib-less');
@@ -88,6 +100,6 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-watch');
 
   // Default task operations if simply calling `grunt` without options.
-  grunt.registerTask('default', ['jshint', 'jst', 'less', 'concat', 'uglify', 'clean']);
+  grunt.registerTask('default', ['jshint', 'jst', 'replace:replace_this', 'less', 'concat', 'uglify', 'clean']);
 
 };
