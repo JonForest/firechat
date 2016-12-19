@@ -38,7 +38,7 @@ window["FirechatDefaultTemplates"]["templates/tab-content.html"] = function(obj)
 
 window["FirechatDefaultTemplates"]["templates/tab-menu-item.html"] = function(obj) {obj || (obj = {});var __t, __p = '', __e = _.escape;with (obj) {__p += '<li data-room-id=\'' +__e( id ) +'\'>\n<a href=\'#' +__e( id ) +'\' data-toggle=\'firechat-tab\' title=\'' +__e( name ) +'\'>' +__e( name ) +'</a>\n</li>';}return __p};
 
-window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = function(obj) {obj || (obj = {});var __t, __p = '', __e = _.escape, __j = Array.prototype.join;function print() { __p += __j.call(arguments, '') }with (obj) {__p += '<li data-user-id=\'' +__e( id ) +'\' data-user-name=\'' +__e( name ) +'\'>\n<a href=\'#!\' class=\'clearfix\'>\n'; if (disableActions) { ;__p += '\n<span class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +'</span>\n'; } else { ;__p += '\n<span data-event=\'firechat-user-chat\' class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +'</span>\n<span data-event=\'firechat-user-chat\' class=\'icon user-chat right\' title=\'Invite to Private Chat\'>&nbsp;</span>\n'; } ;__p += '\n</a>\n</li>';}return __p};
+window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = function(obj) {obj || (obj = {});var __t, __p = '', __e = _.escape, __j = Array.prototype.join;function print() { __p += __j.call(arguments, '') }with (obj) {__p += '<li data-user-id=\'' +__e( id ) +'\' data-user-name=\'' +__e( name ) +'\'>\n<a href=\'#!\' class=\'clearfix\'>\n'; if (disableActions) { ;__p += '\n<span class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +' - ' +__e(level) +'</span>\n'; } else { ;__p += '\n<span data-event=\'firechat-user-chat\' class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +'- what abiut window?</span>\n<span data-event=\'firechat-user-chat\' class=\'icon user-chat right\' title=\'Invite to Private Chat\'>&nbsp;</span>\n'; } ;__p += '\n</a>\n</li>';}return __p};
 (function($) {
 
   // Shim for Function.bind(...) - (Required by IE < 9, FF < 4, SF < 6)
@@ -96,10 +96,10 @@ window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = fun
   var root = this,
       previousFirechat = root.Firechat;
 
-  function Firechat(firebaseRef, options) {
-
+  function Firechat(firebaseRef, playersRef, options) {
     // Cache the provided Database reference and the firebase.App instance
     this._firechatRef = firebaseRef;
+    this._playersRef = playersRef;
     this._firebaseApp = firebaseRef.database.app;
 
     // User-specific instance variables.
@@ -653,7 +653,8 @@ window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = fun
   Firechat.prototype.getUsersByPrefix = function(prefix, startAt, endAt, limit, cb) {
     var self = this,
         query = this._usersOnlineRef,
-        prefixLower = prefix.toLowerCase();
+        prefixLower = prefix.toLowerCase(),
+        that = this;
 
     if (startAt) {
       query = query.startAt(null, startAt);
@@ -690,12 +691,23 @@ window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = fun
           name: userName,
           id: userId
         };
+        setAdditionalUserDetails(userName, userId, usernamesFiltered);
       }
-
-      root.setTimeout(function() {
-        cb(usernamesFiltered);
-      }, 0);
     });
+
+    // Add additional details to the user object.  Do it within this separate function so we're not
+    // caught by the famous 'closures inside loops' problem.  See http://jshint.com/docs/options/#loopfunc
+    function setAdditionalUserDetails(userName, userId, usernamesFiltered) {
+      var playerQuery = that._playersRef.orderByChild('userId').equalTo(userId).limitToFirst(1);
+      playerQuery.once('value', function (playerSnapshot) {
+        // todo: This looks overly clunky.  Review further Firebase query docs to see if it won't just return this
+        // object child rather than the firebase 'array' version
+        var player = playerSnapshot.val()[Object.keys(playerSnapshot.val())[0]];
+        usernamesFiltered[userName].level = player.level || 'No level';
+        root.setTimeout(function() {
+          cb(usernamesFiltered);
+        }, 0);
+      });    }
   };
 
   // Miscellaneous helper methods.
@@ -737,11 +749,15 @@ window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = fun
     throw new Error("Unable to find chat templates!");
   }
 
-  function FirechatUI(firebaseRef, el, options) {
+  function FirechatUI(firebaseRef, playersRef, el, options) {
     var self = this;
 
     if (!firebaseRef) {
       throw new Error('FirechatUI: Missing required argument `firebaseRef`');
+    }
+
+    if (!playersRef) {
+      throw new Error('FirechatUI: Missing required argument `playersRef`');
     }
 
     if (!el) {
@@ -753,7 +769,7 @@ window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = fun
 
     this._el = el;
     this._user = null;
-    this._chat = new Firechat(firebaseRef, options);
+    this._chat = new Firechat(firebaseRef, playersRef, options);
 
     // A list of rooms to enter once we've made room for them (once we've hit the max room limit).
     this._roomQueue = [];
