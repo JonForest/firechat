@@ -38,7 +38,7 @@ window["FirechatDefaultTemplates"]["templates/tab-content.html"] = function(obj)
 
 window["FirechatDefaultTemplates"]["templates/tab-menu-item.html"] = function(obj) {obj || (obj = {});var __t, __p = '', __e = _.escape;with (obj) {__p += '<li data-room-id=\'' +__e( id ) +'\'>\n<a href=\'#' +__e( id ) +'\' data-toggle=\'firechat-tab\' title=\'' +__e( name ) +'\'>' +__e( name ) +'</a>\n</li>';}return __p};
 
-window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = function(obj) {obj || (obj = {});var __t, __p = '', __e = _.escape, __j = Array.prototype.join;function print() { __p += __j.call(arguments, '') }with (obj) {__p += '<li data-user-id=\'' +__e( id ) +'\' data-user-name=\'' +__e( name ) +'\'>\n<a href=\'#!\' class=\'clearfix\'>\n'; if (disableActions) { ;__p += '\n<span class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +' - ' +__e(level) +'</span>\n'; } else { ;__p += '\n<span data-event=\'firechat-user-chat\' class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +'- what abiut window?</span>\n<span data-event=\'firechat-user-chat\' class=\'icon user-chat right\' title=\'Invite to Private Chat\'>&nbsp;</span>\n'; } ;__p += '\n</a>\n</li>';}return __p};
+window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = function(obj) {obj || (obj = {});var __t, __p = '', __e = _.escape, __j = Array.prototype.join;function print() { __p += __j.call(arguments, '') }with (obj) {__p += '<li data-user-id=\'' +__e( id ) +'\' data-user-name=\'' +__e( name ) +'\'>\n<a href=\'#!\' class=\'clearfix\'>\n'; if (disableActions) { ;__p += '\n<span class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +' - ' +__e(level) +'</span>\n'; } else { ;__p += '\n<span data-event=\'firechat-user-chat\' class=\'left fivesixth clipped\' title=\'' +__e( name ) +'\'>' +__e( name ) +' - ' +__e(level) +'</span>\n<span data-event=\'firechat-user-chat\' class=\'icon user-chat right\' title=\'Invite to Private Chat\'>&nbsp;</span>\n'; } ;__p += '\n</a>\n</li>';}return __p};
 (function($) {
 
   // Shim for Function.bind(...) - (Required by IE < 9, FF < 4, SF < 6)
@@ -668,7 +668,8 @@ window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = fun
 
     query.once('value', function(snapshot) {
       var usernames = snapshot.val() || {},
-          usernamesFiltered = {};
+          usernamesFiltered = {},
+          levelPromises = [];
 
       for (var userNameKey in usernames) {
         var sessions = usernames[userNameKey],
@@ -691,23 +692,37 @@ window["FirechatDefaultTemplates"]["templates/user-search-list-item.html"] = fun
           name: userName,
           id: userId
         };
-        setAdditionalUserDetails(userName, userId, usernamesFiltered);
+        levelPromises.push(setAdditionalUserDetails(userName, userId, usernamesFiltered));
       }
+      Promise.all(levelPromises)
+        .then(function() {
+          root.setTimeout(function() {
+            cb(usernamesFiltered);
+          }, 0);
+        });
     });
 
     // Add additional details to the user object.  Do it within this separate function so we're not
     // caught by the famous 'closures inside loops' problem.  See http://jshint.com/docs/options/#loopfunc
     function setAdditionalUserDetails(userName, userId, usernamesFiltered) {
-      var playerQuery = that._playersRef.orderByChild('userId').equalTo(userId).limitToFirst(1);
-      playerQuery.once('value', function (playerSnapshot) {
-        // todo: This looks overly clunky.  Review further Firebase query docs to see if it won't just return this
-        // object child rather than the firebase 'array' version
-        var player = playerSnapshot.val()[Object.keys(playerSnapshot.val())[0]];
-        usernamesFiltered[userName].level = player.level || 'No level';
-        root.setTimeout(function() {
-          cb(usernamesFiltered);
-        }, 0);
-      });    }
+      return new Promise(function (resolve, reject) {
+        var playerQuery = that._playersRef.orderByChild('userId').equalTo(userId).limitToFirst(1);
+        playerQuery.once('value', function (playerSnapshot) {
+          console.log(userName);
+          // todo: This looks overly clunky.  Review further Firebase query docs to see if it won't just return this
+          // object child rather than the firebase 'array' version
+          if (playerSnapshot.val() === null) {
+            // Player doesn't exist; maybe been deleted from the game, so don't display in the chat
+            // delete usernamesFiltered[userName];
+            usernamesFiltered[userName].level = 0; // todo: testing only
+            return resolve();
+          }
+          var player = playerSnapshot.val()[Object.keys(playerSnapshot.val())[0]];
+          usernamesFiltered[userName].level = player.level || 'No level';
+          resolve();
+        });
+      });
+    }
   };
 
   // Miscellaneous helper methods.
