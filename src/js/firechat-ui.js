@@ -14,11 +14,15 @@
     throw new Error("Unable to find chat templates!");
   }
 
-  function FirechatUI(firebaseRef, el, options) {
+  function FirechatUI(firebaseRef, playersRef, el, options) {
     var self = this;
 
     if (!firebaseRef) {
       throw new Error('FirechatUI: Missing required argument `firebaseRef`');
+    }
+
+    if (!playersRef) {
+      throw new Error('FirechatUI: Missing required argument `playersRef`');
     }
 
     if (!el) {
@@ -30,7 +34,7 @@
 
     this._el = el;
     this._user = null;
-    this._chat = new Firechat(firebaseRef, options);
+    this._chat = new Firechat(firebaseRef, playersRef, options);
 
     // A list of rooms to enter once we've made room for them (once we've hit the max room limit).
     this._roomQueue = [];

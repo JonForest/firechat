@@ -19,10 +19,10 @@
   var root = this,
       previousFirechat = root.Firechat;
 
-  function Firechat(firebaseRef, options) {
-
+  function Firechat(firebaseRef, playersRef, options) {
     // Cache the provided Database reference and the firebase.App instance
     this._firechatRef = firebaseRef;
+    this._playersRef = playersRef;
     this._firebaseApp = firebaseRef.database.app;
 
     // User-specific instance variables.
@@ -576,7 +576,8 @@
   Firechat.prototype.getUsersByPrefix = function(prefix, startAt, endAt, limit, cb) {
     var self = this,
         query = this._usersOnlineRef,
-        prefixLower = prefix.toLowerCase();
+        prefixLower = prefix.toLowerCase(),
+        that = this;
 
     if (startAt) {
       query = query.startAt(null, startAt);
@@ -590,7 +591,8 @@
 
     query.once('value', function(snapshot) {
       var usernames = snapshot.val() || {},
-          usernamesFiltered = {};
+          usernamesFiltered = {},
+          levelPromises = [];
 
       for (var userNameKey in usernames) {
         var sessions = usernames[userNameKey],
@@ -613,12 +615,36 @@
           name: userName,
           id: userId
         };
+        levelPromises.push(setAdditionalUserDetails(userName, userId, usernamesFiltered));
       }
-
-      root.setTimeout(function() {
-        cb(usernamesFiltered);
-      }, 0);
+      Promise.all(levelPromises)
+        .then(function() {
+          root.setTimeout(function() {
+            cb(usernamesFiltered);
+          }, 0);
+        });
     });
+
+    // Add additional details to the user object.  Do it within this separate function so we're not
+    // caught by the famous 'closures inside loops' problem.  See http://jshint.com/docs/options/#loopfunc
+    function setAdditionalUserDetails(userName, userId, usernamesFiltered) {
+      return new Promise(function (resolve, reject) {
+        var playerQuery = that._playersRef.orderByChild('userId').equalTo(userId).limitToFirst(1);
+        playerQuery.once('value', function (playerSnapshot) {
+          // todo: This looks overly clunky.  Review further Firebase query docs to see if it won't just return this
+          // object child rather than the firebase 'array' version
+          if (playerSnapshot.val() === null) {
+            // Player doesn't exist; maybe been deleted from the game, so don't display in the chat
+            // delete usernamesFiltered[userName];
+            usernamesFiltered[userName].level = 0; // todo: testing only
+            return resolve();
+          }
+          var player = playerSnapshot.val()[Object.keys(playerSnapshot.val())[0]];
+          usernamesFiltered[userName].level = player.level || 'No level';
+          resolve();
+        });
+      });
+    }
   };
 
   // Miscellaneous helper methods.
